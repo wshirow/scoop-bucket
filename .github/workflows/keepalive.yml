@@ -1,27 +1,33 @@
-name: Keepalive Workflow
+name: Keepalive
 
 on:
   schedule:
-    - cron: '0 5 1,15 * *'
+    - cron: '10 20 * * 3'
   workflow_dispatch:
 
-concurrency:
-  group: keepalive
-  cancel-in-progress: false
+permissions:
+  contents: write
 
 jobs:
-
   keepalive:
-    permissions:
-      actions: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
-      - name: Re-enable workflow
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check last commit date and commit if needed
         run: |
-          gh workflow enable keepalive.yml
-          gh workflow enable excavator.yml
+          LAST_COMMIT=$(git log -1 --format=%ct)
+          NOW=$(date +%s)
+          DIFF_DAYS=$(( (NOW - LAST_COMMIT) / 86400 ))
+          THRESHOLD=50
+
+          if [ "$DIFF_DAYS" -ge "$THRESHOLD" ]; then
+            echo "${DIFF_DAYS} days have passed since the last commit."
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: keepalive (${DIFF_DAYS} days since last commit)"
+            git push
+          fi
